@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Uso e Ocupação do Solo — Sentinel-2</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.browser.min.js"></script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1923;
+    color: #e8edf2;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  #header {
+    background: linear-gradient(135deg, #0f1923 0%, #1a2a3a 100%);
+    border-bottom: 1px solid #2a3f55;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+
+  #header-left { display: flex; align-items: center; gap: 12px; }
+
+  .header-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #1e88e5, #00897b);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  #header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e8edf2;
+    letter-spacing: 0.01em;
+  }
+
+  #header p {
+    font-size: 11px;
+    color: #7a9bb5;
+    margin-top: 1px;
+  }
+
+  /* badges */
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-blue  { background: #1e3a5f; color: #60adf5; border: 1px solid #2a4f7a; }
+  .badge-green { background: #0d3326; color: #4caf82; border: 1px solid #1a5040; }
+
+  /* header controls */
+  #header-right { display: flex; align-items: center; gap: 8px; }
+
+  .hbtn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid #2a3f55;
+    color: #b0c4d8;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .hbtn:hover { background: rgba(255,255,255,0.1); border-color: #3d5a75; color: #e8edf2; }
+  .hbtn svg { width:13px; height:13px; flex-shrink:0; }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  #panel {
+    width: 260px;
+    flex-shrink: 0;
+    background: #131f2b;
+    border-right: 1px solid #1e2f3e;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 500;
+  }
+
+  .panel-section {
+    border-bottom: 1px solid #1e2f3e;
+    padding: 12px 14px;
+  }
+
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #4a6a85;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-title svg { width:12px; height:12px; }
+
+  /* opacity slider */
+  .slider-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .slider-label { font-size: 11px; color: #7a9bb5; min-width: 58px; }
+  .slider-val   { font-size: 11px; font-weight: 600; color: #60adf5; min-width: 32px; text-align: right; }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: #2a3f55;
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #1e88e5;
+    cursor: pointer;
+    border: 2px solid #0f1923;
+  }
+
+  /* legend */
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    padding-left: 4px;
+    transition: background 0.1s;
+  }
+  .legend-item:hover { background: rgba(255,255,255,0.04); }
+  .legend-item.hidden { opacity: 0.35; }
+
+  .legend-swatch {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .legend-text { font-size: 11px; color: #b0c4d8; flex: 1; }
+  .legend-count { font-size: 10px; color: #4a6a85; }
+
+  /* basemap buttons */
+  .basemap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .basemap-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #2a3f55;
+    border-radius: 6px;
+    padding: 7px 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    color: #7a9bb5;
+    font-size: 10px;
+  }
+  .basemap-btn:hover  { background: rgba(255,255,255,0.08); border-color: #3d5a75; color: #e8edf2; }
+  .basemap-btn.active { background: #1a3050; border-color: #1e88e5; color: #60adf5; }
+  .basemap-btn .bm-icon { font-size: 16px; display: block; margin-bottom: 3px; }
+
+  /* tools */
+  .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tool-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #2a3f55;
+    border-radius: 6px;
+    padding: 8px 6px;
+    cursor: pointer;
+    text-align: center;
+    color: #7a9bb5;
+    font-size: 10px;
+    transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .tool-btn:hover  { background: rgba(255,255,255,0.08); border-color: #3d5a75; color: #e8edf2; }
+  .tool-btn.active { background: #1a3050; border-color: #1e88e5; color: #60adf5; }
+  .tool-btn svg    { width: 16px; height: 16px; }
+
+  /* stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #1e2f3e;
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .stat-label { font-size: 9px; color: #4a6a85; text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-val   { font-size: 15px; font-weight: 700; color: #e8edf2; margin-top: 2px; }
+  .stat-unit  { font-size: 9px; color: #4a6a85; }
+
+  /* ── MAP ── */
+  #map-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #map { width: 100%; height: 100%; }
+
+  /* ── LOAD OVERLAY ── */
+  #load-overlay {
+    position: absolute; inset: 0;
+    background: rgba(10,16,24,0.92);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 2000;
+    gap: 16px;
+    backdrop-filter: blur(4px);
+  }
+
+  #load-overlay.hidden { display: none; }
+
+  .spinner {
+    width: 44px; height: 44px;
+    border: 3px solid #1e2f3e;
+    border-top-color: #1e88e5;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #load-msg { font-size: 13px; color: #7a9bb5; text-align: center; line-height: 1.5; }
+  #load-sub  { font-size: 11px; color: #4a6a85; text-align: center; }
+
+  /* file drop zone */
+  #drop-zone {
+    position: absolute; inset: 0;
+    background: rgba(10,16,24,0.88);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 1500;
+    gap: 14px;
+    backdrop-filter: blur(6px);
+  }
+
+  #drop-zone.hidden { display: none; }
+
+  .drop-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #1a3050, #0d3326);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    border: 1px solid #2a4f7a;
+  }
+
+  .drop-title { font-size: 18px; font-weight: 600; color: #e8edf2; }
+  .drop-sub   { font-size: 12px; color: #7a9bb5; text-align: center; max-width: 320px; line-height: 1.6; }
+
+  .drop-path {
+    background: #0d1a26;
+    border: 1px solid #2a3f55;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-family: 'Consolas', monospace;
+    color: #60adf5;
+    word-break: break-all;
+    max-width: 380px;
+    text-align: center;
+  }
+
+  .drop-btn-row { display: flex; gap: 10px; }
+
+  .drop-btn-primary {
+    background: linear-gradient(135deg, #1565c0, #0e88e5);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .drop-btn-primary:hover { opacity: 0.85; }
+
+  .drop-btn-ghost {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid #2a3f55;
+    border-radius: 8px;
+    color: #7a9bb5;
+    font-size: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .drop-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e8edf2; }
+
+  /* drag highlight */
+  #drop-zone.drag-over { border: 2px dashed #1e88e5; }
+
+  /* ── INFO TOOLTIP ── */
+  #pixel-info {
+    position: absolute;
+    bottom: 30px; right: 14px;
+    background: #131f2b;
+    border: 1px solid #2a3f55;
+    border-radius: 8px;
+    padding: 10px 13px;
+    z-index: 1000;
+    font-size: 11px;
+    min-width: 170px;
+    display: none;
+  }
+  #pixel-info.show { display: block; }
+  .pi-row  { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 3px; }
+  .pi-key  { color: #4a6a85; }
+  .pi-val  { color: #e8edf2; font-weight: 500; }
+
+  /* ── NORTH ARROW ── */
+  #north {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 36px; height: 36px;
+    z-index: 900;
+    pointer-events: none;
+  }
+
+  /* ── SCALE BAR (custom) ── */
+  .leaflet-control-scale-line { background: rgba(19,31,43,0.85) !important; border-color: #2a3f55 !important; color: #7a9bb5 !important; }
+
+  /* ── PROGRESS BAR ── */
+  #progress-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #1e88e5, #00897b);
+    z-index: 3000;
+    transform-origin: left;
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+  }
+
+  /* ── NOTIFICATION ── */
+  #notif {
+    position: absolute;
+    top: 14px; left: 50%; transform: translateX(-50%);
+    background: #131f2b;
+    border: 1px solid #2a3f55;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 12px;
+    color: #e8edf2;
+    z-index: 3000;
+    display: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #notif.show { display: block; }
+  #notif.success { border-color: #1a5040; color: #4caf82; }
+  #notif.error   { border-color: #5a1a1a; color: #ef5350; }
+
+  /* leaflet overrides */
+  .leaflet-bar a { background: #131f2b !important; color: #b0c4d8 !important; border-color: #2a3f55 !important; }
+  .leaflet-bar a:hover { background: #1a2a3a !important; }
+  .leaflet-popup-content-wrapper { background: #131f2b; color: #e8edf2; border: 1px solid #2a3f55; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  .leaflet-popup-tip { background: #131f2b; }
+  .leaflet-popup-close-button { color: #7a9bb5 !important; }
+
+  #file-input { display: none; }
+
+  /* loading bar anim */
+  @keyframes pulse-bar {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+  .loading-bar { animation: pulse-bar 1.2s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<input type="file" id="file-input" accept=".tif,.tiff,.geotiff">
+
+<!-- HEADER -->
+<div id="header">
+  <div id="header-left">
+    <div class="header-icon">🛰️</div>
+    <div>
+      <h1>Mapa de Uso e Ocupação do Solo</h1>
+      <p>UsoOcupacao_Sentinel2.tif &nbsp;·&nbsp; Classificação por imagem Sentinel-2</p>
+    </div>
+    <span class="badge badge-blue">Sentinel-2</span>
+    <span class="badge badge-green">GeoTIFF</span>
+  </div>
+  <div id="header-right">
+    <button class="hbtn" onclick="document.getElementById('file-input').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Carregar GeoTIFF
+    </button>
+    <button class="hbtn" onclick="exportMapPNG()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      Exportar PNG
+    </button>
+    <button class="hbtn" onclick="toggleFullscreen()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      Tela Cheia
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="panel">
+
+    <!-- Opacidade -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/></svg>
+        Opacidade da Camada
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">Raster</span>
+        <input type="range" id="opacity-slider" min="0" max="100" value="85" oninput="updateOpacity(this.value)">
+        <span class="slider-val" id="opacity-val">85%</span>
+      </div>
+    </div>
+
+    <!-- Legenda -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Classes de Uso do Solo
+      </div>
+      <div id="legend-items"></div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Estatísticas
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Linhas</div><div class="stat-val" id="stat-rows">—</div></div>
+        <div class="stat-card"><div class="stat-label">Colunas</div><div class="stat-val" id="stat-cols">—</div></div>
+        <div class="stat-card"><div class="stat-label">Bandas</div><div class="stat-val" id="stat-bands">—</div></div>
+        <div class="stat-card"><div class="stat-label">Resolução</div><div class="stat-val" id="stat-res">—</div><div class="stat-unit">metros</div></div>
+      </div>
+    </div>
+
+    <!-- Mapa Base -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        Mapa Base
+      </div>
+      <div class="basemap-grid">
+        <button class="basemap-btn active" onclick="setBasemap('osm',this)"><span class="bm-icon">🗺️</span>OpenStreetMap</button>
+        <button class="basemap-btn" onclick="setBasemap('satellite',this)"><span class="bm-icon">🛰️</span>Satélite</button>
+        <button class="basemap-btn" onclick="setBasemap('topo',this)"><span class="bm-icon">⛰️</span>Topográfico</button>
+        <button class="basemap-btn" onclick="setBasemap('dark',this)"><span class="bm-icon">🌑</span>Dark</button>
+      </div>
+    </div>
+
+    <!-- Ferramentas -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Ferramentas
+      </div>
+      <div class="tool-grid">
+        <button class="tool-btn" id="btn-zoom-layer" onclick="zoomToLayer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          Zoom Camada
+        </button>
+        <button class="tool-btn" id="btn-measure" onclick="toggleMeasure()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4"/></svg>
+          Medir
+        </button>
+        <button class="tool-btn" onclick="toggleGrid()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Grade
+        </button>
+        <button class="tool-btn" onclick="resetView()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.8"/></svg>
+          Resetar
+        </button>
+      </div>
+    </div>
+
+    <!-- Coordenadas -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Coordenadas do Cursor
+      </div>
+      <div style="font-size:11px; color:#7a9bb5; line-height:1.8;">
+        <div>Lat: <span id="cur-lat" style="color:#e8edf2; font-family:monospace">—</span></div>
+        <div>Lon: <span id="cur-lon" style="color:#e8edf2; font-family:monospace">—</span></div>
+        <div>Zoom: <span id="cur-zoom" style="color:#e8edf2; font-family:monospace">—</span></div>
+      </div>
+    </div>
+
+    <!-- Informações -->
+    <div class="panel-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Arquivo
+      </div>
+      <div style="font-size:10px; color:#4a6a85; line-height:1.8; font-family:monospace; word-break:break-all;">
+        <div style="color:#7a9bb5; margin-bottom:4px;">UsoOcupacao_Sentinel2.tif</div>
+        <div>C:\Daniel\Geoprocessamento\</div>
+        <div>Clientes\Barbara\Base\IMG</div>
+        <div style="margin-top:6px; color:#4a6a85;">Sentinel-2 · EPSG detectado automaticamente</div>
+      </div>
+    </div>
+
+  </div><!-- /panel -->
+
+  <!-- MAP -->
+  <div id="map-wrap">
+    <div id="progress-bar"></div>
+
+    <!-- Drop Zone -->
+    <div id="drop-zone">
+      <div class="drop-icon">🛰️</div>
+      <div class="drop-title">Carregar GeoTIFF</div>
+      <div class="drop-sub">
+        Arraste e solte o arquivo <strong>UsoOcupacao_Sentinel2.tif</strong> aqui,<br>
+        ou clique no botão abaixo para selecionar o arquivo do seu computador.
+      </div>
+      <div class="drop-path">C:\Daniel\Geoprocessamento\Clientes\Barbara\Base\IMG\UsoOcupacao_Sentinel2.tif</div>
+      <div class="drop-btn-row">
+        <button class="drop-btn-primary" onclick="document.getElementById('file-input').click()">📂 Selecionar Arquivo</button>
+        <button class="drop-btn-ghost" onclick="loadDemoMode()">🗺️ Modo Demo</button>
+      </div>
+      <div style="font-size:10px; color:#3d5a75; text-align:center; margin-top:4px;">
+        Formatos aceitos: .tif · .tiff · .geotiff
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="load-overlay" class="hidden">
+      <div class="spinner"></div>
+      <div id="load-msg">Carregando GeoTIFF…</div>
+      <div id="load-sub">Isso pode levar alguns segundos para arquivos grandes</div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- North Arrow -->
+    <svg id="north" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="17" fill="#131f2b" stroke="#2a3f55" stroke-width="1"/>
+      <polygon points="18,5 22,18 18,15 14,18" fill="#e8edf2"/>
+      <polygon points="18,31 22,18 18,21 14,18" fill="#4a6a85"/>
+      <text x="18" y="10" text-anchor="middle" fill="#e8edf2" font-size="7" font-weight="700" font-family="sans-serif">N</text>
+    </svg>
+
+    <!-- Pixel Info -->
+    <div id="pixel-info">
+      <div style="font-size:10px; font-weight:700; color:#4a6a85; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:6px;">Valor do Pixel</div>
+      <div class="pi-row"><span class="pi-key">Classe</span><span class="pi-val" id="pi-class">—</span></div>
+      <div class="pi-row"><span class="pi-key">Valor DN</span><span class="pi-val" id="pi-dn">—</span></div>
+      <div class="pi-row"><span class="pi-key">Lat</span><span class="pi-val" id="pi-lat">—</span></div>
+      <div class="pi-row"><span class="pi-key">Lon</span><span class="pi-val" id="pi-lon">—</span></div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notif"></div>
+  </div><!-- /map-wrap -->
+
+</div><!-- /main -->
+
+<script>
+// ─── CONFIG: classes de uso do solo ─────────────────────────────────────────
+// Adaptar os valores DN e cores à classificação real do seu raster
+const CLASSES = [
+  { value: 1,  label: 'Vegetação Densa',     color: '#1b5e20', hex: '#1b5e20' },
+  { value: 2,  label: 'Vegetação Aberta',    color: '#66bb6a', hex: '#66bb6a' },
+  { value: 3,  label: 'Pastagem',            color: '#aed581', hex: '#aed581' },
+  { value: 4,  label: 'Agricultura',         color: '#f9a825', hex: '#f9a825' },
+  { value: 5,  label: 'Solo Exposto',        color: '#d4a44c', hex: '#d4a44c' },
+  { value: 6,  label: 'Área Urbana',         color: '#e53935', hex: '#e53935' },
+  { value: 7,  label: 'Corpos d\'Água',      color: '#1565c0', hex: '#1565c0' },
+  { value: 8,  label: 'Sombra / Nuvem',      color: '#607d8b', hex: '#607d8b' },
+  { value: 0,  label: 'Sem Dado (NoData)',   color: '#000000', hex: '#000000' },
+];
+
+const CLASS_MAP = {};
+CLASSES.forEach(c => CLASS_MAP[c.value] = c);
+
+// ─── MAP INIT ────────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [-15.78, -47.93],
+  zoom: 6,
+  zoomControl: true,
+  attributionControl: true
+});
+
+map.zoomControl.setPosition('bottomright');
+L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map);
+
+// Basemaps
+const basemaps = {
+  osm:       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }),
+  topo:      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 }),
+  dark:      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB', maxZoom: 19 }),
+};
+basemaps.osm.addTo(map);
+let activeBasemap = 'osm';
+
+// ─── LEGEND RENDER ──────────────────────────────────────────────────────────
+function renderLegend() {
+  const el = document.getElementById('legend-items');
+  el.innerHTML = '';
+  CLASSES.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.id = 'leg-' + c.value;
+    item.innerHTML = `
+      <div class="legend-swatch" style="background:${c.color}"></div>
+      <span class="legend-text">${c.label}</span>
+    `;
+    el.appendChild(item);
+  });
+}
+renderLegend();
+
+// ─── CURSOR COORDS ───────────────────────────────────────────────────────────
+map.on('mousemove', e => {
+  document.getElementById('cur-lat').textContent  = e.latlng.lat.toFixed(6);
+  document.getElementById('cur-lon').textContent  = e.latlng.lng.toFixed(6);
+  document.getElementById('cur-zoom').textContent = map.getZoom();
+});
+
+// ─── BASEMAP ─────────────────────────────────────────────────────────────────
+function setBasemap(key, btn) {
+  if (activeBasemap === key) return;
+  map.removeLayer(basemaps[activeBasemap]);
+  basemaps[key].addTo(map);
+  basemaps[key].bringToBack();
+  activeBasemap = key;
+  document.querySelectorAll('.basemap-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (rasterLayer) rasterLayer.bringToFront();
+}
+
+// ─── OPACITY ─────────────────────────────────────────────────────────────────
+let rasterLayer = null;
+function updateOpacity(val) {
+  document.getElementById('opacity-val').textContent = val + '%';
+  if (rasterLayer) rasterLayer.setOpacity(val / 100);
+}
+
+// ─── PROGRESS BAR ────────────────────────────────────────────────────────────
+function setProgress(p) {
+  const bar = document.getElementById('progress-bar');
+  bar.style.transform = `scaleX(${p})`;
+}
+
+// ─── NOTIFICATION ────────────────────────────────────────────────────────────
+function showNotif(msg, type = '') {
+  const n = document.getElementById('notif');
+  n.textContent = msg;
+  n.className = 'show ' + type;
+  clearTimeout(n._t);
+  n._t = setTimeout(() => { n.className = ''; }, 3000);
+}
+
+// ─── LOADING STATE ───────────────────────────────────────────────────────────
+function showLoading(msg = 'Carregando GeoTIFF…') {
+  document.getElementById('load-msg').textContent = msg;
+  document.getElementById('load-overlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('load-overlay').classList.add('hidden');
+}
+
+// ─── LOAD GEOTIFF ────────────────────────────────────────────────────────────
+async function loadGeoTIFF(file) {
+  document.getElementById('drop-zone').classList.add('hidden');
+  showLoading('Lendo arquivo GeoTIFF…');
+  setProgress(0.1);
+
+  try {
+    const buffer = await file.arrayBuffer();
+    setProgress(0.4);
+    showLoading('Parseando metadados…');
+
+    const georaster = await parseGeoraster(buffer);
+    setProgress(0.7);
+    showLoading('Renderizando camada…');
+
+    // Fill stats
+    document.getElementById('stat-rows').textContent  = georaster.height.toLocaleString('pt-BR');
+    document.getElementById('stat-cols').textContent  = georaster.width.toLocaleString('pt-BR');
+    document.getElementById('stat-bands').textContent = georaster.numberOfRasters;
+    const res = georaster.pixelWidth ? Math.round(georaster.pixelWidth) : '—';
+    document.getElementById('stat-res').textContent = res;
+
+    // Remove previous layer
+    if (rasterLayer) map.removeLayer(rasterLayer);
+
+    // Build colorscale from CLASSES
+    const colorScale = (value) => {
+      if (value === null || value === undefined || isNaN(value)) return 'transparent';
+      const v = Math.round(value);
+      if (v === 0) return 'rgba(0,0,0,0)';
+      const cls = CLASS_MAP[v];
+      return cls ? cls.color : '#888888';
+    };
+
+    rasterLayer = new GeoRasterLayer({
+      georaster,
+      opacity: document.getElementById('opacity-slider').value / 100,
+      pixelValuesToColorFn: values => colorScale(values[0]),
+      resolution: 256,
+    });
+
+    rasterLayer.addTo(map);
+    setProgress(1);
+
+    setTimeout(() => {
+      map.fitBounds(rasterLayer.getBounds());
+      hideLoading();
+      setProgress(0);
+      document.getElementById('pixel-info').classList.add('show');
+      showNotif('✓ GeoTIFF carregado com sucesso!', 'success');
+    }, 400);
+
+    // Click to inspect pixel
+    map.on('click', e => inspectPixel(e, georaster));
+
+  } catch(err) {
+    console.error(err);
+    hideLoading();
+    setProgress(0);
+    document.getElementById('drop-zone').classList.remove('hidden');
+    showNotif('Erro ao carregar o arquivo: ' + err.message, 'error');
+  }
+}
+
+// ─── PIXEL INSPECT ───────────────────────────────────────────────────────────
+async function inspectPixel(e, georaster) {
+  const { lat, lng } = e.latlng;
+  try {
+    const vals = await geoblaze.identify(georaster, [lng, lat]);
+    if (vals && vals.length) {
+      const v = Math.round(vals[0]);
+      const cls = CLASS_MAP[v];
+      document.getElementById('pi-dn').textContent    = v;
+      document.getElementById('pi-class').textContent = cls ? cls.label : 'Desconhecido';
+      document.getElementById('pi-lat').textContent   = lat.toFixed(6);
+      document.getElementById('pi-lon').textContent   = lng.toFixed(6);
+    }
+  } catch {}
+}
+
+// ─── ZOOM TO LAYER ───────────────────────────────────────────────────────────
+function zoomToLayer() {
+  if (rasterLayer) {
+    map.fitBounds(rasterLayer.getBounds());
+    showNotif('Zoom ajustado à camada');
+  } else {
+    showNotif('Nenhuma camada carregada', 'error');
+  }
+}
+
+// ─── RESET VIEW ──────────────────────────────────────────────────────────────
+function resetView() {
+  if (rasterLayer) {
+    map.fitBounds(rasterLayer.getBounds());
+  } else {
+    map.setView([-15.78, -47.93], 6);
+  }
+}
+
+// ─── MEASURE TOOL (simples) ──────────────────────────────────────────────────
+let measuring = false;
+let measurePoints = [];
+let measureLines = [];
+let measureMarkers = [];
+
+function toggleMeasure() {
+  measuring = !measuring;
+  document.getElementById('btn-measure').classList.toggle('active', measuring);
+  if (measuring) {
+    map.getContainer().style.cursor = 'crosshair';
+    showNotif('Clique no mapa para medir distâncias. Duplo-clique para finalizar.');
+  } else {
+    map.getContainer().style.cursor = '';
+    measureLines.forEach(l => map.removeLayer(l));
+    measureMarkers.forEach(m => map.removeLayer(m));
+    measurePoints = []; measureLines = []; measureMarkers = [];
+  }
+}
+
+map.on('click', e => {
+  if (!measuring) return;
+  measurePoints.push(e.latlng);
+  const m = L.circleMarker(e.latlng, { radius: 4, color: '#1e88e5', fillColor: '#1e88e5', fillOpacity: 1 }).addTo(map);
+  measureMarkers.push(m);
+  if (measurePoints.length >= 2) {
+    const p1 = measurePoints[measurePoints.length - 2];
+    const p2 = measurePoints[measurePoints.length - 1];
+    const dist = p1.distanceTo(p2);
+    const line = L.polyline([p1, p2], { color: '#1e88e5', weight: 2, dashArray: '6 4' }).addTo(map);
+    measureLines.push(line);
+    const mid = L.latLng((p1.lat+p2.lat)/2, (p1.lng+p2.lng)/2);
+    const label = dist > 1000
+      ? `${(dist/1000).toFixed(2)} km`
+      : `${Math.round(dist)} m`;
+    L.marker(mid, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="background:#131f2b;border:1px solid #2a3f55;border-radius:4px;padding:2px 6px;font-size:10px;color:#60adf5;white-space:nowrap;">${label}</div>`,
+        iconAnchor: [30, 10]
+      })
+    }).addTo(map);
+  }
+});
+
+// ─── GRID ────────────────────────────────────────────────────────────────────
+let gridLayer = null;
+function toggleGrid() {
+  if (gridLayer) { map.removeLayer(gridLayer); gridLayer = null; return; }
+  gridLayer = L.layerGroup();
+  const b = map.getBounds();
+  const step = (b.getNorth() - b.getSouth()) / 5;
+  for (let lat = Math.floor(b.getSouth()); lat <= b.getNorth(); lat += step) {
+    L.polyline([[lat, b.getWest()],[lat, b.getEast()]], { color: '#2a3f55', weight: 0.5, dashArray: '4 4' }).addTo(gridLayer);
+  }
+  const stepLng = (b.getEast() - b.getWest()) / 5;
+  for (let lng = Math.floor(b.getWest()); lng <= b.getEast(); lng += stepLng) {
+    L.polyline([[b.getSouth(), lng],[b.getNorth(), lng]], { color: '#2a3f55', weight: 0.5, dashArray: '4 4' }).addTo(gridLayer);
+  }
+  gridLayer.addTo(map);
+}
+
+// ─── DEMO MODE ───────────────────────────────────────────────────────────────
+function loadDemoMode() {
+  document.getElementById('drop-zone').classList.add('hidden');
+  showNotif('Modo demo ativado. Carregue o GeoTIFF para visualizar a classificação real.', '');
+
+  // Simulate stats
+  document.getElementById('stat-rows').textContent  = '4.096';
+  document.getElementById('stat-cols').textContent  = '4.096';
+  document.getElementById('stat-bands').textContent = '1';
+  document.getElementById('stat-res').textContent   = '10';
+
+  // Place a demo rectangle over central Brazil
+  const demoRect = L.rectangle([[-18, -50], [-10, -42]], {
+    color: '#1e88e5', weight: 1, fillColor: '#1a3050', fillOpacity: 0.3,
+    dashArray: '8 4'
+  }).addTo(map);
+
+  demoRect.bindPopup('<div style="color:#e8edf2;font-size:12px;"><b>Área do Projeto (Demo)</b><br>Carregue o arquivo GeoTIFF<br>para ver a classificação real</div>');
+
+  map.fitBounds(demoRect.getBounds());
+  document.getElementById('pixel-info').classList.add('show');
+  showNotif('✓ Modo demo ativo — carregue o GeoTIFF real', 'success');
+}
+
+// ─── FULLSCREEN ──────────────────────────────────────────────────────────────
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// ─── EXPORT PNG ──────────────────────────────────────────────────────────────
+function exportMapPNG() {
+  showNotif('Use Print Screen ou a ferramenta de captura do navegador para exportar.');
+}
+
+// ─── FILE INPUT ──────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadGeoTIFF(file);
+});
+
+// ─── DRAG & DROP ─────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+
+document.body.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+document.body.addEventListener('dragleave', () => {
+  dropZone.classList.remove('drag-over');
+});
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && (file.name.endsWith('.tif') || file.name.endsWith('.tiff'))) {
+    loadGeoTIFF(file);
+  } else {
+    showNotif('Por favor, selecione um arquivo .tif ou .tiff', 'error');
+  }
+});
+
+// geoblaze shim (pixel identify)
+const geoblaze = {
+  identify: async (georaster, point) => {
+    const [lng, lat] = point;
+    const { xmin, xmax, ymin, ymax, width, height, values } = georaster;
+    const col = Math.floor((lng - xmin) / (xmax - xmin) * width);
+    const row = Math.floor((ymax - lat) / (ymax - ymin) * height);
+    if (col < 0 || col >= width || row < 0 || row >= height) return null;
+    return values.map(band => band[row] ? band[row][col] : null);
+  }
+};
+
+</script>
+
+<!-- load GeoRasterLayer after DOM -->
+<script>
+// Ensure georaster-layer is available via global
+window.addEventListener('load', () => {
+  if (typeof GeoRasterLayer === 'undefined') {
+    console.warn('GeoRasterLayer not loaded via CDN — retrying');
+  }
+});
+</script>
+
+</body>
+</html>
