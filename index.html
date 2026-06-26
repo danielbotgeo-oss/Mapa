@@ -2,186 +2,484 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Teste Dropbox - GeoTIFF</title>
+    <title>Mapa Uso do Solo - Teste</title>
+    
+    <!-- CSS do Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body { margin: 0; background: #0b141a; color: #fff; font-family: sans-serif; }
-        #map { height: 100vh; width: 100%; }
-        #status {
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #111d29;
-            padding: 12px 24px;
-            border-radius: 8px;
-            border: 1px solid #1e3a4d;
-            z-index: 9999;
-            text-align: center;
-            max-width: 90%;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0b141a; 
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #dce8f0;
         }
-        #status.error { border-color: #e53935; color: #ff8a80; }
-        #status.success { border-color: #2e7d5e; color: #7bcfa6; }
-        .progress {
-            width: 100%;
+        #map { 
+            height: 100vh; 
+            width: 100%; 
+        }
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0b141a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #1a2e3b;
+            border-top: 4px solid #58a9e8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        #loading p {
+            color: #7a9bb3;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        #loading .bar {
+            width: 300px;
+            max-width: 80vw;
             height: 4px;
             background: #1a2e3b;
             border-radius: 4px;
-            margin-top: 8px;
             overflow: hidden;
         }
-        .progress-bar {
+        #loading .bar-inner {
             width: 0%;
             height: 100%;
             background: linear-gradient(90deg, #58a9e8, #7bc0ff);
-            transition: width 0.2s;
+            transition: width 0.3s;
         }
+        #error-msg {
+            color: #ff8a80;
+            background: #1e2024;
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 1px solid #3d2a2a;
+            max-width: 500px;
+            margin-top: 15px;
+            display: none;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        #error-msg.show { display: block; }
+        
+        /* Legenda */
+        #legend {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(17, 29, 41, 0.95);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #1e3a4d;
+            font-size: 12px;
+            z-index: 1000;
+            max-width: 180px;
+            backdrop-filter: blur(4px);
+        }
+        #legend .title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .leg-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 3px 0;
+        }
+        .leg-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .notif {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111d29;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #1e3a4d;
+            font-size: 13px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .notif.show { opacity: 1; }
+        .notif.ok { border-color: #2e7d5e; color: #7bcfa6; }
+        .notif.error { border-color: #e53935; color: #ff8a80; }
     </style>
 </head>
 <body>
-    <div id="status">
-        <div id="msg">⏳ Inicializando...</div>
-        <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+
+    <!-- TELA DE CARREGAMENTO -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <h2 id="load-title">⏳ Carregando Mapa</h2>
+        <p id="load-msg">Preparando tudo...</p>
+        <div class="bar"><div class="bar-inner" id="load-bar"></div></div>
+        <div id="error-msg"></div>
     </div>
+
+    <!-- MAPA -->
     <div id="map"></div>
 
+    <!-- LEGENDA -->
+    <div id="legend">
+        <div class="title">📊 Legenda</div>
+        <div id="legend-items"></div>
+    </div>
+
+    <!-- NOTIFICAÇÃO -->
+    <div id="notif" class="notif"></div>
+
+    <!-- ============ BIBLIOTECAS ============ -->
+    <!-- Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- GeoTIFF.js -->
     <script src="https://unpkg.com/geotiff@2.0.7/dist/geotiff.bundle.min.js"></script>
+    
+    <!-- GeoRaster Layer -->
     <script src="https://unpkg.com/georaster-layer-for-leaflet@3.1.0/dist/georaster-layer-leaflet.min.js"></script>
 
     <script>
-        // 🔑 SEU LINK DO DROPBOX (com dl=1)
+        // ================================================================
+        //  CONFIGURAÇÃO
+        // ================================================================
+        
+        // 🔑 SEU LINK DO DROPBOX (direto)
         const DROPBOX_URL = 'https://www.dropbox.com/scl/fi/a62m3wxfw9tzhbvpabg05/UsoOcupacao_Sentinel2.tif?rlkey=nppxevja3hvad638og2byd6tq&dl=1';
         
-        // Elementos
-        const statusEl = document.getElementById('status');
-        const msgEl = document.getElementById('msg');
-        const progressBar = document.getElementById('progress-bar');
+        // Backup com proxy (se o direto falhar)
+        const PROXY_URL = 'https://corsproxy.io/?' + encodeURIComponent(DROPBOX_URL);
 
-        function setStatus(msg, type) {
-            msgEl.textContent = msg;
-            statusEl.className = type || '';
+        // Classes do mapa
+        const CLASSES = [
+            { value: 1, label: 'Vegetação Densa', color: '#1b5e20' },
+            { value: 2, label: 'Vegetação Aberta', color: '#66bb6a' },
+            { value: 3, label: 'Pastagem', color: '#c5e1a5' },
+            { value: 4, label: 'Agricultura', color: '#f9a825' },
+            { value: 5, label: 'Solo Exposto', color: '#d4a44c' },
+            { value: 6, label: 'Área Urbana', color: '#e53935' },
+            { value: 7, label: "Corpos d'Água", color: '#1565c0' },
+            { value: 8, label: 'Sombra / Nuvem', color: '#607d8b' },
+        ];
+        const CLASS_MAP = Object.fromEntries(CLASSES.map(c => [c.value, c]));
+
+        // ================================================================
+        //  ELEMENTOS DA TELA
+        // ================================================================
+        
+        const loadingEl = document.getElementById('loading');
+        const loadTitle = document.getElementById('load-title');
+        const loadMsg = document.getElementById('load-msg');
+        const loadBar = document.getElementById('load-bar');
+        const errorMsg = document.getElementById('error-msg');
+        const notifEl = document.getElementById('notif');
+
+        function setLoading(title, msg, progress) {
+            loadTitle.textContent = title;
+            loadMsg.textContent = msg || '';
+            if (progress !== undefined) {
+                loadBar.style.width = Math.min(100, progress) + '%';
+            }
         }
 
-        function setProgress(pct) {
-            progressBar.style.width = Math.min(100, pct) + '%';
+        function showError(msg) {
+            errorMsg.innerHTML = msg;
+            errorMsg.className = 'show';
+            document.querySelector('.spinner').style.display = 'none';
         }
 
-        // Mapa base
-        const map = L.map('map').setView([-15.78, -47.93], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
+        function showNotif(msg, type) {
+            notifEl.textContent = msg;
+            notifEl.className = 'notif show ' + (type || '');
+            clearTimeout(notifEl._timeout);
+            notifEl._timeout = setTimeout(() => {
+                notifEl.className = 'notif';
+            }, 3000);
+        }
+
+        function hideLoading() {
+            loadingEl.classList.add('hidden');
+        }
+
+        // ================================================================
+        //  CRIAÇÃO DA LEGENDA
+        // ================================================================
+        
+        const legendContainer = document.getElementById('legend-items');
+        CLASSES.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'leg-item';
+            div.innerHTML = `<div class="leg-color" style="background:${c.color}"></div>${c.label}`;
+            legendContainer.appendChild(div);
+        });
+
+        // ================================================================
+        //  FUNÇÃO DE COR DOS PIXELS
+        // ================================================================
+        
+        function pixelColor(values) {
+            const v = Math.round(values[0]);
+            if (!v || v === 0) return null;
+            const c = CLASS_MAP[v];
+            return c ? c.color : '#888888';
+        }
+
+        // ================================================================
+        //  MAPA
+        // ================================================================
+        
+        const map = L.map('map', {
+            center: [-15.78, -47.93],
+            zoom: 5,
+            zoomControl: true
+        });
+        map.zoomControl.setPosition('bottomright');
+        
+        // Camada base
+        const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 19
         }).addTo(map);
 
-        // Função principal
-        async function carregarTiff() {
-            setStatus('📥 Baixando do Dropbox...', '');
-            setProgress(5);
+        let rasterLayer = null;
 
-            try {
-                // 1. Baixar o arquivo
-                const response = await fetch(DROPBOX_URL);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+        // ================================================================
+        //  CARREGAR GEOTIFF
+        // ================================================================
+        
+        async function loadGeoTIFF() {
+            setLoading('📥 Baixando arquivo...', 'Conectando ao Dropbox...', 5);
 
-                const contentLength = response.headers.get('content-length');
-                const totalBytes = contentLength ? parseInt(contentLength) : 0;
-                
-                setStatus(`📥 Baixando ${totalBytes ? (totalBytes/1024/1024).toFixed(1) : '...'} MB`, '');
+            // TENTA PRIMEIRO COM O LINK DIRETO
+            let urlsToTry = [DROPBOX_URL, PROXY_URL];
+            let lastError = null;
 
-                // 2. Ler o stream com progresso
-                const reader = response.body.getReader();
-                const chunks = [];
-                let received = 0;
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+            for (let i = 0; i < urlsToTry.length; i++) {
+                try {
+                    const url = urlsToTry[i];
+                    const isProxy = i === 1;
                     
-                    chunks.push(value);
-                    received += value.length;
+                    setLoading(
+                        isProxy ? '🔄 Tentando via proxy...' : '📥 Baixando do Dropbox...',
+                        isProxy ? 'Usando servidor alternativo' : 'Arquivo ~100MB, aguarde...',
+                        10 + (i * 20)
+                    );
+
+                    const response = await fetch(url);
                     
-                    if (totalBytes > 0) {
-                        const pct = 5 + (received / totalBytes) * 45;
-                        setProgress(pct);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
+
+                    // Verifica se é HTML (erro do proxy)
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('text/html') && isProxy) {
+                        throw new Error('Proxy retornou HTML em vez do arquivo');
+                    }
+
+                    // Lê o arquivo
+                    const totalBytes = parseInt(response.headers.get('content-length') || '0');
+                    const reader = response.body.getReader();
+                    const chunks = [];
+                    let received = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        received += value.length;
+                        
+                        if (totalBytes > 0) {
+                            const pct = 10 + ((received / totalBytes) * 50);
+                            loadBar.style.width = Math.min(60, pct) + '%';
+                        }
+                    }
+
+                    // Junta tudo
+                    const allData = new Uint8Array(received);
+                    let pos = 0;
+                    for (const chunk of chunks) {
+                        allData.set(chunk, pos);
+                        pos += chunk.length;
+                    }
+
+                    setLoading('🔄 Processando GeoTIFF...', 'Lendo metadados...', 65);
+
+                    // Interpreta com geotiff.js
+                    const tiff = await GeoTIFF.fromBuffer(allData.buffer);
+                    const image = await tiff.getImage();
+                    
+                    setLoading('🎨 Renderizando...', 'Aplicando cores...', 80);
+
+                    // Usa parseGeoraster (do georaster-layer)
+                    const georaster = await parseGeoraster(allData.buffer);
+
+                    // Remove layer anterior se existir
+                    if (rasterLayer) {
+                        map.removeLayer(rasterLayer);
+                    }
+
+                    // Cria nova layer
+                    rasterLayer = new GeoRasterLayer({
+                        georaster: georaster,
+                        pixelValuesToColorFn: pixelColor,
+                        resolution: 256,
+                        opacity: 1
+                    });
+
+                    rasterLayer.addTo(map);
+                    
+                    // Ajusta o zoom
+                    try {
+                        map.fitBounds(rasterLayer.getBounds());
+                    } catch (e) {
+                        console.warn('Não foi possível ajustar o zoom:', e);
+                    }
+
+                    // Mostra informação
+                    console.log('✅ GeoTIFF carregado:', {
+                        width: georaster.width,
+                        height: georaster.height,
+                        bands: georaster.numberOfRasters,
+                        bbox: image.getBoundingBox()
+                    });
+
+                    setLoading('✅ Concluído!', 'Mapa pronto para uso.', 100);
+                    
+                    // Esconde loading após 1 segundo
+                    setTimeout(() => {
+                        hideLoading();
+                        showNotif('✅ GeoTIFF carregado com sucesso!', 'ok');
+                    }, 800);
+
+                    return; // Sucesso!
+
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`Tentativa ${i+1} falhou:`, error.message);
+                    
+                    if (i === urlsToTry.length - 1) {
+                        // Última tentativa falhou
+                        showError(`
+                            ❌ <strong>Erro ao carregar o GeoTIFF</strong><br><br>
+                            <strong>Mensagem:</strong> ${error.message}<br><br>
+                            <strong>Soluções:</strong><br>
+                            1. Verifique se o arquivo está público no Dropbox<br>
+                            2. Baixe o arquivo e use <strong>Git LFS</strong> no GitHub<br>
+                            3. Tente usar um <strong>proxy diferente</strong><br><br>
+                            <span style="font-size:12px;color:#7a9bb3;">
+                            Dica: Abra o console (F12) para mais detalhes.
+                            </span>
+                        `);
+                        return;
+                    }
+                    
+                    // Continua para a próxima tentativa
+                    continue;
                 }
-
-                // 3. Juntar os chunks
-                const allChunks = new Uint8Array(received);
-                let position = 0;
-                for (const chunk of chunks) {
-                    allChunks.set(chunk, position);
-                    position += chunk.length;
-                }
-
-                setStatus('🔄 Processando GeoTIFF...', '');
-                setProgress(60);
-
-                // 4. Interpretar com geotiff.js
-                const tiff = await GeoTIFF.fromBuffer(allChunks.buffer);
-                const image = await tiff.getImage();
-                const bbox = image.getBoundingBox();
-                
-                setStatus('🎨 Renderizando no mapa...', '');
-                setProgress(80);
-
-                // 5. Criar layer com GeoRasterLayer
-                const georaster = await parseGeoraster(allChunks.buffer);
-                
-                // Função de cores (simplificada - apenas para teste)
-                function pixelColor(values) {
-                    const v = Math.round(values[0]);
-                    const colors = {
-                        1: '#1b5e20', 2: '#66bb6a', 3: '#c5e1a5',
-                        4: '#f9a825', 5: '#d4a44c', 6: '#e53935',
-                        7: '#1565c0', 8: '#607d8b'
-                    };
-                    return colors[v] || null;
-                }
-
-                const layer = new GeoRasterLayer({
-                    georaster: georaster,
-                    pixelValuesToColorFn: pixelColor,
-                    resolution: 256,
-                    opacity: 1
-                });
-
-                layer.addTo(map);
-                
-                // Ajustar zoom
-                map.fitBounds(layer.getBounds());
-
-                setStatus('✅ Sucesso! GeoTIFF carregado.', 'success');
-                setProgress(100);
-
-                // Mostrar info no console
-                console.log('GeoTIFF carregado:', {
-                    width: georaster.width,
-                    height: georaster.height,
-                    bands: georaster.numberOfRasters,
-                    bbox: bbox
-                });
-
-            } catch (error) {
-                console.error('Erro completo:', error);
-                setStatus(`❌ Erro: ${error.message}`, 'error');
-                setProgress(0);
             }
         }
 
-        // Iniciar quando as bibliotecas carregarem
-        function iniciar() {
-            if (typeof GeoTIFF !== 'undefined' && typeof parseGeoraster !== 'undefined') {
-                carregarTiff();
+        // ================================================================
+        //  INICIALIZAÇÃO - ESPERA AS BIBLIOTECAS CARREGAREM
+        // ================================================================
+        
+        function waitForLibraries(tries) {
+            // Verifica se as bibliotecas estão disponíveis
+            const libsReady = (
+                typeof L !== 'undefined' &&
+                typeof GeoTIFF !== 'undefined' &&
+                typeof parseGeoraster !== 'undefined' &&
+                typeof GeoRasterLayer !== 'undefined'
+            );
+
+            if (libsReady) {
+                console.log('✅ Bibliotecas carregadas. Iniciando...');
+                loadGeoTIFF();
+                return;
+            }
+
+            if (tries <= 0) {
+                showError(`
+                    ❌ <strong>Bibliotecas não carregaram</strong><br><br>
+                    Verifique sua conexão com a internet.<br>
+                    As bibliotecas necessárias são:<br>
+                    • Leaflet<br>
+                    • GeoTIFF.js<br>
+                    • GeoRaster Layer<br><br>
+                    <span style="font-size:12px;color:#7a9bb3;">
+                    Tente recarregar a página ou usar outro navegador.
+                    </span>
+                `);
+                return;
+            }
+
+            // Tenta novamente em 500ms
+            setTimeout(() => waitForLibraries(tries - 1), 500);
+        }
+
+        // ================================================================
+        //  INÍCIO
+        // ================================================================
+        
+        console.log('🚀 Inicializando mapa...');
+        setLoading('⏳ Inicializando...', 'Carregando bibliotecas...', 0);
+        
+        // Aguarda as bibliotecas (40 tentativas = 20 segundos)
+        waitForLibraries(40);
+
+        // ================================================================
+        //  CONTROLES ADICIONAIS (opcionais)
+        // ================================================================
+        
+        // Exemplo: botão para resetar zoom (pode adicionar no HTML)
+        window.resetZoom = function() {
+            if (rasterLayer) {
+                try { map.fitBounds(rasterLayer.getBounds()); } catch(e) {}
             } else {
-                setTimeout(iniciar, 500);
+                map.setView([-15.78, -47.93], 5);
             }
-        }
+        };
 
-        iniciar();
+        // Exemplo: mudar opacidade
+        window.setOpacity = function(value) {
+            if (rasterLayer) {
+                rasterLayer.setOpacity(value / 100);
+            }
+        };
+
+        console.log('💡 Use as funções: resetZoom() e setOpacity(valor)');
     </script>
 </body>
 </html>
