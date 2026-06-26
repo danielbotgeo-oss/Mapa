@@ -1,485 +1,187 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Uso e Ocupação do Solo — Sentinel-2</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.browser.min.js"></script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1923;color:#e8edf2;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-#header{background:#111d29;border-bottom:1px solid #1e2f3e;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:1000}
-.hd-left{display:flex;align-items:center;gap:10px}
-.hd-icon{width:34px;height:34px;background:linear-gradient(135deg,#1565c0,#00897b);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-#header h1{font-size:14px;font-weight:600;color:#e8edf2}
-#header p{font-size:10px;color:#5a7a95;margin-top:1px}
-.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.05em;text-transform:uppercase}
-.b-blue{background:#1a2f4a;color:#5aabf5;border:1px solid #1e3d60}
-.b-green{background:#0c2e20;color:#4caf82;border:1px solid #165a3a}
-.hd-right{display:flex;gap:6px}
-.hbtn{background:rgba(255,255,255,.05);border:1px solid #2a3f55;color:#9ab5cc;border-radius:6px;padding:5px 10px;font-size:10px;cursor:pointer;display:flex;align-items:center;gap:4px;transition:.15s}
-.hbtn:hover{background:rgba(255,255,255,.1);color:#e8edf2}
-.hbtn svg{width:12px;height:12px}
-#main{display:flex;flex:1;overflow:hidden}
-#panel{width:252px;flex-shrink:0;background:#111d29;border-right:1px solid #1a2a3a;display:flex;flex-direction:column;overflow-y:auto;z-index:500}
-.ps{border-bottom:1px solid #1a2a3a;padding:11px 13px}
-.st{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3d5a70;margin-bottom:9px;display:flex;align-items:center;gap:5px}
-.st svg{width:11px;height:11px}
-.sl-row{display:flex;align-items:center;gap:7px;margin-bottom:2px}
-.sl-lbl{font-size:10px;color:#6a8fa8;min-width:50px}
-.sl-val{font-size:10px;font-weight:600;color:#5aabf5;min-width:30px;text-align:right}
-input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#1e3040;border-radius:2px;outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#1e88e5;cursor:pointer;border:2px solid #0f1923}
-.leg-item{display:flex;align-items:center;gap:7px;padding:4px 3px;border-radius:4px}
-.leg-sw{width:13px;height:13px;border-radius:3px;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
-.leg-lbl{font-size:10px;color:#a0bdd0;flex:1}
-.bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.bm-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:6px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s}
-.bm-btn:hover{background:rgba(255,255,255,.08);color:#e8edf2}
-.bm-btn.active{background:#152540;border-color:#1e88e5;color:#5aabf5}
-.bm-ico{font-size:14px;display:block;margin-bottom:2px}
-.tl-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.tl-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:7px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:3px}
-.tl-btn:hover{background:rgba(255,255,255,.08);color:#e8edf2}
-.tl-btn.active{background:#152540;border-color:#1e88e5;color:#5aabf5}
-.tl-btn svg{width:14px;height:14px}
-.sg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.sc{background:rgba(255,255,255,.04);border:1px solid #1a2a3a;border-radius:5px;padding:7px}
-.sk{font-size:8px;color:#3d5a70;text-transform:uppercase;letter-spacing:.05em}
-.sv{font-size:14px;font-weight:700;color:#e8edf2;margin-top:1px}
-.su{font-size:8px;color:#3d5a70}
-#map-wrap{flex:1;position:relative;overflow:hidden}
-#map{width:100%;height:100%}
-#load{position:absolute;inset:0;background:rgba(8,14,22,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;gap:14px;transition:opacity .4s}
-#load.fade{opacity:0;pointer-events:none}
-#load.gone{display:none}
-.spin{width:42px;height:42px;border:3px solid #1a2a3a;border-top-color:#1e88e5;border-radius:50%;animation:sp .8s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-#load-title{font-size:16px;font-weight:600;color:#e8edf2}
-#load-msg{font-size:12px;color:#5a7a95;text-align:center}
-#load-bar-wrap{width:260px;height:4px;background:#1a2a3a;border-radius:2px;overflow:hidden}
-#load-bar{height:100%;background:linear-gradient(90deg,#1e88e5,#00897b);border-radius:2px;width:0%;transition:width .3s}
-#err-box{background:#1a0d0d;border:1px solid #5a1a1a;border-radius:10px;padding:16px 20px;max-width:420px;text-align:center;display:none}
-#err-box.show{display:block}
-.err-title{color:#ef5350;font-size:14px;font-weight:600;margin-bottom:8px}
-.err-msg{color:#9a6060;font-size:11px;line-height:1.8}
-#north{position:absolute;top:12px;right:12px;width:34px;height:34px;z-index:900;pointer-events:none}
-#pxi{position:absolute;bottom:28px;right:12px;background:#111d29;border:1px solid #1e2f3e;border-radius:7px;padding:9px 12px;z-index:800;font-size:10px;min-width:160px;display:none}
-#pxi.show{display:block}
-.pi-r{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px}
-.pi-k{color:#3d5a70}
-.pi-v{color:#e8edf2;font-weight:500}
-#notif{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#111d29;border:1px solid #1e2f3e;border-radius:7px;padding:8px 14px;font-size:11px;color:#e8edf2;z-index:3000;display:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-#notif.show{display:block}
-#notif.ok{border-color:#1a5040;color:#4caf82}
-#notif.er{border-color:#5a1a1a;color:#ef5350}
-.leaflet-bar a{background:#111d29!important;color:#9ab5cc!important;border-color:#1e2f3e!important}
-.leaflet-bar a:hover{background:#1a2a3a!important}
-.leaflet-popup-content-wrapper{background:#111d29;color:#e8edf2;border:1px solid #1e2f3e;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.6)}
-.leaflet-popup-tip{background:#111d29}
-.leaflet-popup-close-button{color:#5a7a95!important}
-.leaflet-control-scale-line{background:rgba(17,29,41,.85)!important;border-color:#1e2f3e!important;color:#5a7a95!important}
-</style>
+    <meta charset="UTF-8">
+    <title>Teste Dropbox - GeoTIFF</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; background: #0b141a; color: #fff; font-family: sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111d29;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: 1px solid #1e3a4d;
+            z-index: 9999;
+            text-align: center;
+            max-width: 90%;
+        }
+        #status.error { border-color: #e53935; color: #ff8a80; }
+        #status.success { border-color: #2e7d5e; color: #7bcfa6; }
+        .progress {
+            width: 100%;
+            height: 4px;
+            background: #1a2e3b;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #58a9e8, #7bc0ff);
+            transition: width 0.2s;
+        }
+    </style>
 </head>
 <body>
-<div id="header">
-  <div class="hd-left">
-    <div class="hd-icon">🛰️</div>
-    <div>
-      <h1>Uso e Ocupação do Solo</h1>
-      <p>UsoOcupacao_Sentinel2.tif &nbsp;·&nbsp; Classificação Sentinel-2</p>
+    <div id="status">
+        <div id="msg">⏳ Inicializando...</div>
+        <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
     </div>
-    <span class="badge b-blue">Sentinel-2</span>
-    <span class="badge b-green">GeoTIFF</span>
-  </div>
-  <div class="hd-right">
-    <button class="hbtn" onclick="zoomToLayer()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-      Zoom Camada
-    </button>
-    <button class="hbtn" onclick="toggleFullscreen()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-      Tela Cheia
-    </button>
-  </div>
-</div>
-
-<div id="main">
-  <div id="panel">
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/></svg>
-        Opacidade
-      </div>
-      <div class="sl-row">
-        <span class="sl-lbl">Camada</span>
-        <input type="range" id="sl-op" min="0" max="100" value="85" oninput="updateOpacity(this.value)">
-        <span class="sl-val" id="val-op">85%</span>
-      </div>
-    </div>
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Classes de Uso do Solo
-      </div>
-      <div id="legend"></div>
-    </div>
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        Metadados
-      </div>
-      <div class="sg">
-        <div class="sc"><div class="sk">Linhas</div><div class="sv" id="m-rows">—</div></div>
-        <div class="sc"><div class="sk">Colunas</div><div class="sv" id="m-cols">—</div></div>
-        <div class="sc"><div class="sk">Bandas</div><div class="sv" id="m-bands">—</div></div>
-        <div class="sc"><div class="sk">Resolução</div><div class="sv" id="m-res">—</div><div class="su">metros</div></div>
-      </div>
-    </div>
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-        Mapa Base
-      </div>
-      <div class="bm-grid">
-        <button class="bm-btn active" onclick="setBase('osm',this)"><span class="bm-ico">🗺️</span>OpenStreetMap</button>
-        <button class="bm-btn" onclick="setBase('sat',this)"><span class="bm-ico">🛰️</span>Satélite</button>
-        <button class="bm-btn" onclick="setBase('topo',this)"><span class="bm-ico">⛰️</span>Topográfico</button>
-        <button class="bm-btn" onclick="setBase('dark',this)"><span class="bm-ico">🌑</span>Dark</button>
-      </div>
-    </div>
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        Ferramentas
-      </div>
-      <div class="tl-grid">
-        <button class="tl-btn" onclick="toggleMeasure()" id="btn-mea">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4"/></svg>
-          Medir
-        </button>
-        <button class="tl-btn" onclick="toggleGrid()" id="btn-grid">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          Grade
-        </button>
-        <button class="tl-btn" onclick="resetView()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.8"/></svg>
-          Resetar
-        </button>
-        <button class="tl-btn" onclick="togglePixelInfo()" id="btn-pxi">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Inspetor
-        </button>
-      </div>
-    </div>
-    <div class="ps">
-      <div class="st">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
-        Cursor
-      </div>
-      <div style="font-size:10px;color:#5a7a95;line-height:2">
-        Lat: <span id="c-lat" style="color:#e8edf2;font-family:monospace">—</span><br>
-        Lon: <span id="c-lon" style="color:#e8edf2;font-family:monospace">—</span><br>
-        Zoom: <span id="c-zoom" style="color:#e8edf2;font-family:monospace">—</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="map-wrap">
-    <div id="load">
-      <div class="spin"></div>
-      <div id="load-title">Carregando GeoTIFF</div>
-      <div id="load-msg">Buscando UsoOcupacao_Sentinel2.tif…</div>
-      <div id="load-bar-wrap"><div id="load-bar"></div></div>
-      <div id="err-box">
-        <div class="err-title">Arquivo não encontrado</div>
-        <div class="err-msg" id="err-msg">Certifique-se de que <strong>UsoOcupacao_Sentinel2.tif</strong> está na mesma pasta que este HTML no repositório GitHub Pages.</div>
-      </div>
-    </div>
-
     <div id="map"></div>
 
-    <svg id="north" viewBox="0 0 34 34">
-      <circle cx="17" cy="17" r="16" fill="#111d29" stroke="#1e2f3e" stroke-width="1"/>
-      <polygon points="17,4 21,17 17,14 13,17" fill="#e8edf2"/>
-      <polygon points="17,30 21,17 17,20 13,17" fill="#3d5a70"/>
-      <text x="17" y="9" text-anchor="middle" fill="#e8edf2" font-size="6" font-weight="700" font-family="sans-serif">N</text>
-    </svg>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/geotiff@2.0.7/dist/geotiff.bundle.min.js"></script>
+    <script src="https://unpkg.com/georaster-layer-for-leaflet@3.1.0/dist/georaster-layer-leaflet.min.js"></script>
 
-    <div id="pxi">
-      <div style="font-size:9px;font-weight:700;color:#3d5a70;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">Inspetor de Pixel</div>
-      <div class="pi-r"><span class="pi-k">Classe</span><span class="pi-v" id="pi-cls">—</span></div>
-      <div class="pi-r"><span class="pi-k">Valor DN</span><span class="pi-v" id="pi-dn">—</span></div>
-      <div class="pi-r"><span class="pi-k">Lat</span><span class="pi-v" id="pi-lat">—</span></div>
-      <div class="pi-r"><span class="pi-k">Lon</span><span class="pi-v" id="pi-lon">—</span></div>
-    </div>
+    <script>
+        // 🔑 SEU LINK DO DROPBOX (com dl=1)
+        const DROPBOX_URL = 'https://www.dropbox.com/scl/fi/a62m3wxfw9tzhbvpabg05/UsoOcupacao_Sentinel2.tif?rlkey=nppxevja3hvad638og2byd6tq&dl=1';
+        
+        // Elementos
+        const statusEl = document.getElementById('status');
+        const msgEl = document.getElementById('msg');
+        const progressBar = document.getElementById('progress-bar');
 
-    <div id="notif"></div>
-  </div>
-</div>
+        function setStatus(msg, type) {
+            msgEl.textContent = msg;
+            statusEl.className = type || '';
+        }
 
-<script>
-// ── CONFIGURAÇÃO: ajuste as classes ao seu raster ─────────────────────────
-const CLASSES = [
-  { value:1, label:'Vegetação Densa',   color:'#1b5e20' },
-  { value:2, label:'Vegetação Aberta',  color:'#66bb6a' },
-  { value:3, label:'Pastagem',          color:'#c5e1a5' },
-  { value:4, label:'Agricultura',       color:'#f9a825' },
-  { value:5, label:'Solo Exposto',      color:'#d4a44c' },
-  { value:6, label:'Área Urbana',       color:'#e53935' },
-  { value:7, label:"Corpos d'Água",     color:'#1565c0' },
-  { value:8, label:'Sombra / Nuvem',    color:'#607d8b' },
-];
-const CLASS_MAP = Object.fromEntries(CLASSES.map(c => [c.value, c]));
+        function setProgress(pct) {
+            progressBar.style.width = Math.min(100, pct) + '%';
+        }
 
-// ── NOME DO ARQUIVO (mesmo nome do .tif no repositório) ───────────────────
-const TIFF_FILE = 'https://www.dropbox.com/scl/fi/83lu9wahanmb81m1se2rz/UsoOcupacao_Sentinel2.tif.ovr?rlkey=y2xlimb5u9i00hu90umdb3jhj&st=pqxe59qq&dl=1';
+        // Mapa base
+        const map = L.map('map').setView([-15.78, -47.93], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-					
+        // Função principal
+        async function carregarTiff() {
+            setStatus('📥 Baixando do Dropbox...', '');
+            setProgress(5);
 
-// ── MAPA ──────────────────────────────────────────────────────────────────
-const map = L.map('map', { center:[-15.78,-47.93], zoom:5, zoomControl:true });
-map.zoomControl.setPosition('bottomright');
-L.control.scale({ imperial:false, metric:true, position:'bottomleft' }).addTo(map);
+            try {
+                // 1. Baixar o arquivo
+                const response = await fetch(DROPBOX_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
-const basemaps = {
-  osm:  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}),
-  sat:  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19}),
-  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenTopoMap',maxZoom:17}),
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}),
-};
-basemaps.osm.addTo(map);
-let curBase='osm', rasterLayer=null, georasterRef=null;
+                const contentLength = response.headers.get('content-length');
+                const totalBytes = contentLength ? parseInt(contentLength) : 0;
+                
+                setStatus(`📥 Baixando ${totalBytes ? (totalBytes/1024/1024).toFixed(1) : '...'} MB`, '');
 
-// ── LEGENDA ───────────────────────────────────────────────────────────────
-const lgEl = document.getElementById('legend');
-CLASSES.forEach(c => {
-  const d = document.createElement('div');
-  d.className = 'leg-item';
-  d.innerHTML = '<div class="leg-sw" style="background:'+c.color+'"></div><span class="leg-lbl">'+c.label+'</span>';
-  lgEl.appendChild(d);
-});
+                // 2. Ler o stream com progresso
+                const reader = response.body.getReader();
+                const chunks = [];
+                let received = 0;
 
-// ── LOADING ───────────────────────────────────────────────────────────────
-function setLoadBar(pct){ document.getElementById('load-bar').style.width=pct+'%'; }
-function setLoadMsg(t,s){ document.getElementById('load-title').textContent=t; document.getElementById('load-msg').textContent=s||''; }
-function hideLoad(){ const el=document.getElementById('load'); el.classList.add('fade'); setTimeout(()=>el.classList.add('gone'),450); }
-function showError(msg){
-  document.querySelector('.spin').style.display='none';
-  document.getElementById('load-bar-wrap').style.display='none';
-  const b=document.getElementById('err-box');
-  b.classList.add('show');
-  if(msg) document.getElementById('err-msg').innerHTML=msg;
-}
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    received += value.length;
+                    
+                    if (totalBytes > 0) {
+                        const pct = 5 + (received / totalBytes) * 45;
+                        setProgress(pct);
+                    }
+                }
 
-// ── NOTIF ─────────────────────────────────────────────────────────────────
-function notif(msg,type){
-  const n=document.getElementById('notif');
-  n.textContent=msg; n.className='show '+(type||'');
-  clearTimeout(n._t); n._t=setTimeout(()=>{ n.className=''; },3200);
-}
+                // 3. Juntar os chunks
+                const allChunks = new Uint8Array(received);
+                let position = 0;
+                for (const chunk of chunks) {
+                    allChunks.set(chunk, position);
+                    position += chunk.length;
+                }
 
-// ── COR DO PIXEL ──────────────────────────────────────────────────────────
-function pixelColor(values){
-  const v=Math.round(values[0]);
-  if(!v || v===0) return null;
-  const c=CLASS_MAP[v];
-  return c ? c.color : '#888888';
-}
+                setStatus('🔄 Processando GeoTIFF...', '');
+                setProgress(60);
 
-// ── CARREGAR GEOTIFF VIA FETCH ────────────────────────────────────────────
-async function loadTiff(){
-  setLoadMsg('Carregando GeoTIFF','Buscando '+TIFF_FILE+'…');
-  setLoadBar(5);
+                // 4. Interpretar com geotiff.js
+                const tiff = await GeoTIFF.fromBuffer(allChunks.buffer);
+                const image = await tiff.getImage();
+                const bbox = image.getBoundingBox();
+                
+                setStatus('🎨 Renderizando no mapa...', '');
+                setProgress(80);
 
-  let buffer;
-  try {
-    const resp = await fetch('./'+TIFF_FILE);
-    if(!resp.ok) throw new Error('HTTP '+resp.status+' ('+resp.statusText+')');
+                // 5. Criar layer com GeoRasterLayer
+                const georaster = await parseGeoraster(allChunks.buffer);
+                
+                // Função de cores (simplificada - apenas para teste)
+                function pixelColor(values) {
+                    const v = Math.round(values[0]);
+                    const colors = {
+                        1: '#1b5e20', 2: '#66bb6a', 3: '#c5e1a5',
+                        4: '#f9a825', 5: '#d4a44c', 6: '#e53935',
+                        7: '#1565c0', 8: '#607d8b'
+                    };
+                    return colors[v] || null;
+                }
 
-    const total = Number(resp.headers.get('content-length')||0);
-    const reader = resp.body.getReader();
-    const chunks = [];
-    let received = 0;
+                const layer = new GeoRasterLayer({
+                    georaster: georaster,
+                    pixelValuesToColorFn: pixelColor,
+                    resolution: 256,
+                    opacity: 1
+                });
 
-    while(true){
-      const {done, value} = await reader.read();
-      if(done) break;
-      chunks.push(value);
-      received += value.length;
-      const pct = total>0 ? Math.min(50, Math.round(received/total*50)) : Math.min(50, received/1024/1024*5);
-      setLoadBar(pct);
-      setLoadMsg('Baixando arquivo…', total>0
-        ? Math.round(received/1024/1024)+' MB / '+Math.round(total/1024/1024)+' MB'
-        : Math.round(received/1024/1024)+' MB recebidos');
-    }
+                layer.addTo(map);
+                
+                // Ajustar zoom
+                map.fitBounds(layer.getBounds());
 
-    const merged = new Uint8Array(received);
-    let pos=0;
-    for(const c of chunks){ merged.set(c,pos); pos+=c.length; }
-    buffer = merged.buffer;
+                setStatus('✅ Sucesso! GeoTIFF carregado.', 'success');
+                setProgress(100);
 
-  } catch(e){
-    showError(
-      'Não foi possível carregar <strong>'+TIFF_FILE+'</strong>.<br><br>'+
-      'Verifique se o arquivo está na <strong>mesma pasta</strong> que este HTML no repositório GitHub Pages.<br><br>'+
-      '<span style="color:#6a4040">Detalhe técnico: '+e.message+'</span>'
-    );
-    return;
-  }
+                // Mostrar info no console
+                console.log('GeoTIFF carregado:', {
+                    width: georaster.width,
+                    height: georaster.height,
+                    bands: georaster.numberOfRasters,
+                    bbox: bbox
+                });
 
-  setLoadBar(60);
-  setLoadMsg('Processando raster…','Lendo metadados e bandas');
+            } catch (error) {
+                console.error('Erro completo:', error);
+                setStatus(`❌ Erro: ${error.message}`, 'error');
+                setProgress(0);
+            }
+        }
 
-  let georaster;
-  try {
-    georaster = await parseGeoraster(buffer);
-  } catch(e){
-    showError('Erro ao interpretar o GeoTIFF:<br><span style="color:#6a4040">'+e.message+'</span>');
-    return;
-  }
+        // Iniciar quando as bibliotecas carregarem
+        function iniciar() {
+            if (typeof GeoTIFF !== 'undefined' && typeof parseGeoraster !== 'undefined') {
+                carregarTiff();
+            } else {
+                setTimeout(iniciar, 500);
+            }
+        }
 
-  georasterRef = georaster;
-  setLoadBar(80);
-  setLoadMsg('Renderizando camada…','Aplicando paleta de cores');
-
-  document.getElementById('m-rows').textContent  = georaster.height.toLocaleString('pt-BR');
-  document.getElementById('m-cols').textContent  = georaster.width.toLocaleString('pt-BR');
-  document.getElementById('m-bands').textContent = georaster.numberOfRasters;
-  const resM = georaster.pixelWidth ? Math.round(Math.abs(georaster.pixelWidth*111320)) : '—';
-  document.getElementById('m-res').textContent = resM;
-
-  if(rasterLayer) map.removeLayer(rasterLayer);
-
-  rasterLayer = new GeoRasterLayer({
-    georaster,
-    opacity: document.getElementById('sl-op').value/100,
-    pixelValuesToColorFn: pixelColor,
-    resolution: 256,
-  });
-
-  rasterLayer.addTo(map);
-  setLoadBar(100);
-
-  setTimeout(()=>{
-    try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){}
-    hideLoad();
-    notif('GeoTIFF carregado com sucesso!','ok');
-    document.getElementById('pxi').classList.add('show');
-  }, 300);
-}
-
-// ── OPACITY ───────────────────────────────────────────────────────────────
-function updateOpacity(v){
-  document.getElementById('val-op').textContent=v+'%';
-  if(rasterLayer) rasterLayer.setOpacity(v/100);
-}
-
-// ── BASEMAP ───────────────────────────────────────────────────────────────
-function setBase(k,btn){
-  if(curBase===k) return;
-  map.removeLayer(basemaps[curBase]);
-  basemaps[k].addTo(map); basemaps[k].bringToBack();
-  curBase=k;
-  document.querySelectorAll('.bm-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  if(rasterLayer) rasterLayer.bringToFront();
-}
-
-// ── ZOOM ──────────────────────────────────────────────────────────────────
-function zoomToLayer(){ if(rasterLayer) try{ map.fitBounds(rasterLayer.getBounds()); }catch(e){} }
-function resetView(){ if(rasterLayer) zoomToLayer(); else map.setView([-15.78,-47.93],5); }
-
-// ── CURSOR ────────────────────────────────────────────────────────────────
-map.on('mousemove',e=>{
-  document.getElementById('c-lat').textContent=e.latlng.lat.toFixed(5);
-  document.getElementById('c-lon').textContent=e.latlng.lng.toFixed(5);
-  document.getElementById('c-zoom').textContent=map.getZoom();
-});
-
-// ── PIXEL INSPECTOR ───────────────────────────────────────────────────────
-let pxiActive=false;
-function togglePixelInfo(){
-  pxiActive=!pxiActive;
-  document.getElementById('btn-pxi').classList.toggle('active',pxiActive);
-  if(pxiActive) notif('Clique no mapa para inspecionar pixels');
-}
-map.on('click',e=>{
-  if(!pxiActive||!georasterRef) return;
-  const {lat,lng}=e.latlng, g=georasterRef;
-  const col=Math.floor((lng-g.xmin)/(g.xmax-g.xmin)*g.width);
-  const row=Math.floor((g.ymax-lat)/(g.ymax-g.ymin)*g.height);
-  if(col<0||col>=g.width||row<0||row>=g.height) return;
-  const v=Math.round(g.values[0][row][col]);
-  const cls=CLASS_MAP[v];
-  document.getElementById('pi-cls').textContent=cls?cls.label:(v===0?'NoData':'Desconhecido ('+v+')');
-  document.getElementById('pi-dn').textContent=v;
-  document.getElementById('pi-lat').textContent=lat.toFixed(6);
-  document.getElementById('pi-lon').textContent=lng.toFixed(6);
-});
-
-// ── MEDIÇÃO ───────────────────────────────────────────────────────────────
-let measuring=false,mPts=[],mLayers=[];
-function toggleMeasure(){
-  measuring=!measuring;
-  document.getElementById('btn-mea').classList.toggle('active',measuring);
-  if(measuring){ map.getContainer().style.cursor='crosshair'; notif('Clique para medir distâncias'); }
-  else{ map.getContainer().style.cursor=''; mLayers.forEach(l=>map.removeLayer(l)); mPts=[]; mLayers=[]; }
-}
-map.on('click',e=>{
-  if(!measuring) return;
-  mPts.push(e.latlng);
-  const m=L.circleMarker(e.latlng,{radius:4,color:'#1e88e5',fillColor:'#1e88e5',fillOpacity:1}).addTo(map);
-  mLayers.push(m);
-  if(mPts.length>=2){
-    const p1=mPts[mPts.length-2],p2=mPts[mPts.length-1];
-    const d=p1.distanceTo(p2);
-    const lbl=d>1000?(d/1000).toFixed(2)+' km':Math.round(d)+' m';
-    const line=L.polyline([p1,p2],{color:'#1e88e5',weight:2,dashArray:'6 3'}).addTo(map);
-    mLayers.push(line);
-    const mid=L.latLng((p1.lat+p2.lat)/2,(p1.lng+p2.lng)/2);
-    const lm=L.marker(mid,{icon:L.divIcon({className:'',html:'<div style="background:#111d29;border:1px solid #1e2f3e;border-radius:4px;padding:2px 6px;font-size:9px;color:#5aabf5;white-space:nowrap">'+lbl+'</div>',iconAnchor:[28,8]})}).addTo(map);
-    mLayers.push(lm);
-  }
-});
-
-// ── GRADE ─────────────────────────────────────────────────────────────────
-let gridLayer=null;
-function toggleGrid(){
-  if(gridLayer){ map.removeLayer(gridLayer); gridLayer=null; document.getElementById('btn-grid').classList.remove('active'); return; }
-  gridLayer=L.layerGroup();
-  const b=map.getBounds(),sty={color:'#2a4a60',weight:.5,dashArray:'4 4'};
-  const dLat=(b.getNorth()-b.getSouth())/5, dLng=(b.getEast()-b.getWest())/5;
-  for(let i=0;i<=5;i++){
-    L.polyline([[b.getSouth()+i*dLat,b.getWest()],[b.getSouth()+i*dLat,b.getEast()]],sty).addTo(gridLayer);
-    L.polyline([[b.getSouth(),b.getWest()+i*dLng],[b.getNorth(),b.getWest()+i*dLng]],sty).addTo(gridLayer);
-  }
-  gridLayer.addTo(map);
-  document.getElementById('btn-grid').classList.add('active');
-}
-
-// ── TELA CHEIA ────────────────────────────────────────────────────────────
-function toggleFullscreen(){
-  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-  else document.exitFullscreen();
-}
-
-// ── INICIA CARREGAMENTO AUTOMÁTICO ────────────────────────────────────────
-// Aguarda todas as bibliotecas CDN carregarem antes de chamar loadTiff()
-function waitLibsAndLoad(tries){
-  if(typeof parseGeoraster!=='undefined' && typeof GeoRasterLayer!=='undefined'){
-    loadTiff();
-  } else if(tries>0){
-    setTimeout(()=>waitLibsAndLoad(tries-1), 150);
-  } else {
-    showError('Bibliotecas GeoRaster não carregaram.<br>Verifique sua conexão com a internet e recarregue a página.');
-  }
-}
-window.addEventListener('load', ()=>waitLibsAndLoad(40));
-</script>
+        iniciar();
+    </script>
 </body>
 </html>
