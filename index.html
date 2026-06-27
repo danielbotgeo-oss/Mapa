@@ -8,41 +8,54 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1923;color:#e8edf2;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* ── BASE ── */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{touch-action:manipulation}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1923;color:#e8edf2;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── HEADER ── */
 #header{background:#111d29;border-bottom:1px solid #1e2f3e;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:1000}
-.hd-left{display:flex;align-items:center;gap:10px}
+.hd-left{display:flex;align-items:center;gap:10px;min-width:0}
 .hd-icon{width:34px;height:34px;background:linear-gradient(135deg,#1565c0,#00897b);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-#header h1{font-size:14px;font-weight:600;color:#e8edf2}
-#header p{font-size:10px;color:#5a7a95;margin-top:1px}
-.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.05em;text-transform:uppercase}
+.hd-titles{min-width:0}
+#header h1{font-size:14px;font-weight:600;color:#e8edf2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#header p{font-size:10px;color:#5a7a95;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
 .b-blue{background:#1a2f4a;color:#5aabf5;border:1px solid #1e3d60}
 .b-green{background:#0c2e20;color:#4caf82;border:1px solid #165a3a}
-.hd-right{display:flex;gap:6px}
-.hbtn{background:rgba(255,255,255,.05);border:1px solid #2a3f55;color:#9ab5cc;border-radius:6px;padding:5px 10px;font-size:10px;cursor:pointer;display:flex;align-items:center;gap:4px;transition:.15s}
+.hd-right{display:flex;gap:6px;flex-shrink:0}
+.hbtn{background:rgba(255,255,255,.05);border:1px solid #2a3f55;color:#9ab5cc;border-radius:6px;padding:5px 10px;font-size:10px;cursor:pointer;display:flex;align-items:center;gap:4px;transition:.15s;white-space:nowrap;min-height:34px}
 .hbtn:hover{background:rgba(255,255,255,.1);color:#e8edf2}
-.hbtn svg{width:12px;height:12px}
-#main{display:flex;flex:1;overflow:hidden}
-#panel{width:252px;flex-shrink:0;background:#111d29;border-right:1px solid #1a2a3a;display:flex;flex-direction:column;overflow-y:auto;z-index:500}
+.hbtn svg{width:12px;height:12px;flex-shrink:0}
+
+/* Botão hambúrguer — só no mobile */
+#btn-menu{display:none;background:rgba(255,255,255,.05);border:1px solid #2a3f55;border-radius:6px;width:36px;height:36px;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+#btn-menu svg{width:16px;height:16px;color:#9ab5cc}
+
+/* ── LAYOUT PRINCIPAL ── */
+#main{display:flex;flex:1;overflow:hidden;position:relative}
+
+/* ── PANEL ── */
+#panel{width:252px;flex-shrink:0;background:#111d29;border-right:1px solid #1a2a3a;display:flex;flex-direction:column;overflow-y:auto;z-index:600;transition:transform .3s ease}
 .ps{border-bottom:1px solid #1a2a3a;padding:11px 13px}
 .st{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3d5a70;margin-bottom:9px;display:flex;align-items:center;gap:5px}
 .st svg{width:11px;height:11px}
 .sl-row{display:flex;align-items:center;gap:7px}
 .sl-lbl{font-size:10px;color:#6a8fa8;min-width:50px}
 .sl-val{font-size:10px;font-weight:600;color:#5aabf5;min-width:30px;text-align:right}
-input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:#1e3040;border-radius:2px;outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#1e88e5;cursor:pointer;border:2px solid #0f1923}
-.leg-item{display:flex;align-items:center;gap:7px;padding:4px 3px;border-radius:4px}
+input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:#1e3040;border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#1e88e5;cursor:pointer;border:2px solid #0f1923}
+.leg-item{display:flex;align-items:center;gap:7px;padding:5px 3px;border-radius:4px}
 .leg-sw{width:13px;height:13px;border-radius:3px;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
 .leg-lbl{font-size:10px;color:#a0bdd0;flex:1}
 .bm-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.bm-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:6px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s}
-.bm-btn:hover{background:rgba(255,255,255,.08);color:#e8edf2}
+.bm-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:8px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s;min-height:44px}
+.bm-btn:hover,.bm-btn:active{background:rgba(255,255,255,.08);color:#e8edf2}
 .bm-btn.active{background:#152540;border-color:#1e88e5;color:#5aabf5}
 .bm-ico{font-size:14px;display:block;margin-bottom:2px}
 .tl-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.tl-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:7px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:3px}
-.tl-btn:hover{background:rgba(255,255,255,.08);color:#e8edf2}
+.tl-btn{background:rgba(255,255,255,.04);border:1px solid #1e2f3e;border-radius:5px;padding:9px 5px;cursor:pointer;text-align:center;color:#6a8fa8;font-size:9px;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:44px}
+.tl-btn:hover,.tl-btn:active{background:rgba(255,255,255,.08);color:#e8edf2}
 .tl-btn.active{background:#152540;border-color:#1e88e5;color:#5aabf5}
 .tl-btn svg{width:14px;height:14px}
 .sg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
@@ -50,72 +63,181 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 .sk{font-size:8px;color:#3d5a70;text-transform:uppercase;letter-spacing:.05em}
 .sv{font-size:13px;font-weight:700;color:#e8edf2;margin-top:2px}
 .su{font-size:8px;color:#3d5a70}
+
+/* Overlay escuro ao abrir panel no mobile */
+#panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:550;backdrop-filter:blur(2px)}
+#panel-overlay.show{display:block}
+
+/* ── MAPA ── */
 #map-wrap{flex:1;position:relative;overflow:hidden}
 #map{width:100%;height:100%}
-#load{position:absolute;inset:0;background:rgba(8,14,22,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;gap:13px;transition:opacity .5s}
+
+/* ── LOADING ── */
+#load{position:absolute;inset:0;background:rgba(8,14,22,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000;gap:13px;transition:opacity .5s;padding:20px}
 #load.fade{opacity:0;pointer-events:none}
 #load.gone{display:none}
-.spin{width:44px;height:44px;border:3px solid #1a2a3a;border-top-color:#1e88e5;border-radius:50%;animation:sp .8s linear infinite}
+.spin{width:44px;height:44px;border:3px solid #1a2a3a;border-top-color:#1e88e5;border-radius:50%;animation:sp .8s linear infinite;flex-shrink:0}
 @keyframes sp{to{transform:rotate(360deg)}}
-#load-title{font-size:15px;font-weight:600;color:#e8edf2}
-#load-msg{font-size:11px;color:#5a7a95;text-align:center;max-width:360px;line-height:1.7}
-#load-bar-wrap{width:300px;height:5px;background:#1a2a3a;border-radius:3px;overflow:hidden}
+#load-title{font-size:15px;font-weight:600;color:#e8edf2;text-align:center}
+#load-msg{font-size:11px;color:#5a7a95;text-align:center;max-width:300px;line-height:1.7}
+#load-bar-wrap{width:min(300px,85vw);height:5px;background:#1a2a3a;border-radius:3px;overflow:hidden}
 #load-bar{height:100%;background:linear-gradient(90deg,#1565c0,#00897b);border-radius:3px;width:0%;transition:width .35s ease}
 #load-pct{font-size:10px;color:#3d5a70;font-family:monospace}
-#err-box{background:#180c0c;border:1px solid #5a2020;border-radius:10px;padding:16px 20px;max-width:420px;text-align:center;display:none}
+#err-box{background:#180c0c;border:1px solid #5a2020;border-radius:10px;padding:16px 20px;max-width:min(420px,90vw);text-align:center;display:none}
 #err-box.show{display:block}
 .err-title{color:#ef5350;font-size:13px;font-weight:600;margin-bottom:8px}
 .err-msg{color:#8a5555;font-size:11px;line-height:1.8}
 #upload-box{display:none;flex-direction:column;align-items:center;gap:10px}
 #upload-box.show{display:flex}
-.up-lbl{font-size:11px;color:#5a7a95;text-align:center;line-height:1.6;max-width:320px}
-.up-btn{background:linear-gradient(135deg,#1565c0,#0e78c8);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:9px 22px;cursor:pointer;transition:opacity .15s}
-.up-btn:hover{opacity:.85}
-.divider{width:260px;height:1px;background:#1e2f3e;position:relative}
+.up-lbl{font-size:11px;color:#5a7a95;text-align:center;line-height:1.6;max-width:300px}
+.up-btn{background:linear-gradient(135deg,#1565c0,#0e78c8);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:12px 22px;cursor:pointer;transition:opacity .15s;min-height:44px}
+.up-btn:hover,.up-btn:active{opacity:.85}
+.divider{width:min(260px,80vw);height:1px;background:#1e2f3e;position:relative}
 .divider::after{content:'ou';position:absolute;left:50%;top:-8px;transform:translateX(-50%);background:#0a0e16;padding:0 8px;font-size:9px;color:#3d5a70}
 #file-input{display:none}
+
+/* ── ROSA DOS VENTOS ── */
 #north{position:absolute;top:12px;right:12px;width:36px;height:36px;z-index:900;pointer-events:none}
-#pxi{position:absolute;bottom:36px;right:12px;background:#111d29;border:1px solid #1e2f3e;border-radius:8px;padding:10px 13px;z-index:800;font-size:10px;min-width:172px;display:none;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+
+/* ── PIXEL INSPECTOR ── */
+#pxi{position:absolute;bottom:60px;right:12px;background:#111d29;border:1px solid #1e2f3e;border-radius:8px;padding:10px 13px;z-index:800;font-size:10px;min-width:172px;display:none;box-shadow:0 4px 20px rgba(0,0,0,.5)}
 #pxi.show{display:block}
 .pi-title{font-size:9px;font-weight:700;color:#3d5a70;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px}
 .pi-r{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px}
 .pi-k{color:#3d5a70}
 .pi-v{color:#e8edf2;font-weight:500}
-#notif{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#111d29;border:1px solid #1e2f3e;border-radius:7px;padding:8px 14px;font-size:11px;color:#e8edf2;z-index:3000;display:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+
+/* ── NOTIFICAÇÃO ── */
+#notif{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#111d29;border:1px solid #1e2f3e;border-radius:7px;padding:8px 14px;font-size:11px;color:#e8edf2;z-index:3000;display:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis}
 #notif.show{display:block}
 #notif.ok{border-color:#1a5040;color:#4caf82}
 #notif.er{border-color:#5a2020;color:#ef5350}
-.leaflet-bar a{background:#111d29!important;color:#9ab5cc!important;border-color:#1e2f3e!important}
+
+/* ── LEAFLET OVERRIDES ── */
+.leaflet-bar a{background:#111d29!important;color:#9ab5cc!important;border-color:#1e2f3e!important;min-width:30px!important;min-height:30px!important;line-height:30px!important}
 .leaflet-bar a:hover{background:#1a2a3a!important}
 .leaflet-popup-content-wrapper{background:#111d29;color:#e8edf2;border:1px solid #1e2f3e;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.6)}
 .leaflet-popup-tip{background:#111d29}
 .leaflet-popup-close-button{color:#5a7a95!important}
 .leaflet-control-scale-line{background:rgba(17,29,41,.85)!important;border-color:#1e2f3e!important;color:#5a7a95!important}
+.leaflet-touch .leaflet-bar a{width:34px!important;height:34px!important;line-height:34px!important}
+
+/* ══════════════════════════════════════════════
+   MOBILE  (≤ 768px)
+══════════════════════════════════════════════ */
+@media (max-width:768px){
+  #btn-close-panel{display:block!important}
+  #panel .ps:first-child{padding-top:4px}
+  #header{padding:8px 12px;gap:8px}
+  .hd-icon{width:30px;height:30px;font-size:15px}
+  #header h1{font-size:13px}
+  #header p{display:none}
+  .badge{display:none}
+
+  /* Esconde botões de texto no header, mostra só hambúrguer */
+  .hbtn-label{display:none}
+  .hbtn{padding:0;width:36px;height:36px;justify-content:center}
+  .hbtn svg{width:15px;height:15px}
+  #btn-menu{display:flex}
+
+  /* Panel vira drawer lateral sobreposto */
+  #panel{
+    position:fixed;
+    top:0;bottom:0;left:0;
+    width:min(280px,85vw);
+    z-index:700;
+    transform:translateX(-100%);
+    box-shadow:4px 0 24px rgba(0,0,0,.6);
+  }
+  #panel.open{transform:translateX(0)}
+
+  /* Aumenta área de toque dos botões no panel */
+  .bm-btn,.tl-btn{min-height:48px;font-size:10px}
+  .tl-btn svg{width:16px;height:16px}
+  .leg-item{padding:6px 3px}
+  .leg-sw{width:15px;height:15px}
+  .leg-lbl{font-size:11px}
+  input[type=range]::-webkit-slider-thumb{width:22px;height:22px}
+
+  /* Pixel inspector sobe para não cobrir zoom control */
+  #pxi{bottom:80px;right:8px;left:8px;min-width:0}
+  .pi-r{gap:8px}
+
+  /* Rosa dos ventos menor e mais alta */
+  #north{width:30px;height:30px;top:8px;right:8px}
+
+  /* Notif mais larga */
+  #notif{font-size:12px;padding:9px 16px}
+
+  /* Loading bar 100% width */
+  #load-bar-wrap{width:85vw}
+  #err-box{max-width:90vw}
+  #load-msg{max-width:85vw}
+
+  /* Zoom control menor no mobile */
+  .leaflet-control-zoom{margin-bottom:70px!important}
+}
+
+/* ══════════════════════════════════════════════
+   TELAS MUITO PEQUENAS (≤ 380px)
+══════════════════════════════════════════════ */
+@media (max-width:380px){
+  #header h1{font-size:12px}
+  #panel{width:92vw}
+  .sg{grid-template-columns:1fr 1fr}
+  .sv{font-size:12px}
+}
+
+/* ══════════════════════════════════════════════
+   LANDSCAPE MOBILE (altura < 500px)
+══════════════════════════════════════════════ */
+@media (max-height:500px) and (max-width:900px){
+  #header{padding:5px 12px}
+  #header h1{font-size:12px}
+  #header p{display:none}
+  .badge{display:none}
+  #panel{top:0;bottom:0}
+  #pxi{bottom:8px}
+}
 </style>
 </head>
 <body>
 <input type="file" id="file-input" accept=".tif,.tiff">
 <div id="header">
   <div class="hd-left">
+    <button id="btn-menu" onclick="togglePanel()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="hd-icon">🛰️</div>
-    <div><h1>Uso e Ocupação do Solo</h1><p>UsoOcupacao_Sentinel2.tif &nbsp;·&nbsp; Classificação Sentinel-2</p></div>
+    <div class="hd-titles">
+      <h1>Uso e Ocupação do Solo</h1>
+      <p>UsoOcupacao_Sentinel2.tif &nbsp;·&nbsp; Classificação Sentinel-2</p>
+    </div>
     <span class="badge b-blue">Sentinel-2</span>
     <span class="badge b-green">GeoTIFF</span>
   </div>
   <div class="hd-right">
-    <button class="hbtn" onclick="document.getElementById('file-input').click()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Carregar TIF
+    <button class="hbtn" onclick="document.getElementById('file-input').click()" title="Carregar TIF">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="hbtn-label">Carregar TIF</span>
     </button>
-    <button class="hbtn" onclick="zoomToLayer()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>Zoom
+    <button class="hbtn" onclick="zoomToLayer()" title="Zoom Camada">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg><span class="hbtn-label">Zoom</span>
     </button>
-    <button class="hbtn" onclick="toggleFullscreen()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>Tela Cheia
+    <button class="hbtn" onclick="toggleFullscreen()" title="Tela Cheia">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg><span class="hbtn-label">Tela Cheia</span>
     </button>
   </div>
 </div>
 <div id="main">
+  <!-- Overlay para fechar o panel no mobile ao clicar fora -->
+  <div id="panel-overlay" onclick="togglePanel()"></div>
   <div id="panel">
+    <!-- Botão fechar panel (mobile) -->
+    <div style="display:flex;justify-content:flex-end;padding:8px 10px 0;border-bottom:1px solid #1a2a3a">
+      <button id="btn-close-panel" onclick="togglePanel()" style="background:none;border:none;color:#3d5a70;cursor:pointer;padding:4px;display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
     <div class="ps">
       <div class="st"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/></svg>Opacidade</div>
       <div class="sl-row">
@@ -497,7 +619,42 @@ function toggleGrid(){
   gridLayer.addTo(map);document.getElementById('btn-grid').classList.add('active');
 }
 
-// ── INICIA ────────────────────────────────────────────────────────────────
+// ── MOBILE: PANEL DRAWER ─────────────────────────────────────────────────
+const isMobile=()=>window.innerWidth<=768;
+function togglePanel(){
+  const panel=document.getElementById('panel');
+  const overlay=document.getElementById('panel-overlay');
+  const closeBtn=document.getElementById('btn-close-panel');
+  const isOpen=panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+    overlay.classList.remove('show');
+    closeBtn.style.display='none';
+  }else{
+    panel.classList.add('open');
+    overlay.classList.add('show');
+    closeBtn.style.display='block';
+  }
+}
+// Fecha o panel ao redimensionar para desktop
+window.addEventListener('resize',()=>{
+  if(!isMobile()){
+    document.getElementById('panel').classList.remove('open');
+    document.getElementById('panel-overlay').classList.remove('show');
+    document.getElementById('btn-close-panel').style.display='none';
+  }
+});
+
+// ── MOBILE: PREVINE ZOOM DUPLO-TOQUE NO MAPA ─────────────────────────────
+// (Leaflet já lida com isso, mas garantimos que o body não cause zoom da página)
+document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});
+
+// ── MOBILE: FECHA PANEL AO INTERAGIR COM O MAPA ──────────────────────────
+map.on('movestart',()=>{
+  if(isMobile()&&document.getElementById('panel').classList.contains('open'))togglePanel();
+});
+
+
 window.addEventListener('load',()=>{
   const wait=(n)=>{
     if(typeof GeoTIFF!=='undefined')loadFromDropbox();
